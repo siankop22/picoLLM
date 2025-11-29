@@ -1,0 +1,109 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\title{Pico-LLM Core Task Action Plan}
+\author{Team: \underline{\hspace{2in}}}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section*{Current State Assessment}
+\begin{itemize}[leftmargin=*]
+  \item The training loop, dataset mixer, and generation harness are in place. The default configuration trains only the LSTM model on TinyStories.
+  \item \texttt{KGramMLPSeqModel} lacks an initialized network; the forward pass currently constructs one-hot contexts but forwards them through \texttt{self.net = None}.
+  \item \texttt{nucleus\_sampling} performs greedy decoding (\texttt{argmax}) instead of top-$p$ sampling.
+  \item \texttt{RMSNorm} and \texttt{TransformerModel} are unimplemented stubs.
+  \item The main script does not yet instantiate or train the k-gram MLP or Transformer models, so only the LSTM contributes to outputs and figures.
+\end{itemize}
+
+\section*{Implementation Plan (Core Tasks Only)}
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Sanity-check the starter pipeline.}
+    \begin{itemize}
+      \item Run the existing configuration with reduced hyperparameters (e.g., \texttt{--block\_size 32}, smaller batch size) to confirm end-to-end execution on TinyStories or on the provided \texttt{3seqs.txt} fallback.
+      \item Verify device selection logic and document any environment-specific tweaks needed for CPU-only runs.
+      \item \textbf{Options.}
+        \begin{itemize}[label=\textbf{--}, leftmargin=*]
+          \item \textbf{TinyStories subset} (default loader). Pros: exercises HF dataset pipeline end-to-end; closer to final workload. Cons: slower download/preprocess; may exceed memory on limited hardware.
+          \item \textbf{Synthetic toy data} (e.g., always use \texttt{3seqs.txt} or generate random tokens). Pros: extremely fast to iterate; guarantees deterministic behavior. Cons: may mask tokenization quirks and data-loader edge cases present in TinyStories.
+          \item \textbf{Pre-tokenized cache} (serialize token IDs once). Pros: removes tokenizer latency during sanity checks; consistent across runs. Cons: adds upfront scripting effort; requires cache invalidation when tokenizer settings change.
+        \end{itemize}
+    \end{itemize}
+  \item \textbf{Complete \texttt{KGramMLPSeqModel}.}
+    \begin{itemize}
+      \item Design \texttt{self.net} as an MLP that consumes the flattened one-hot (or embedded) $k$-gram context and outputs vocabulary-sized logits.
+      \item Consider replacing explicit one-hot flattening with an embedding-based projection for efficiency if profiling reveals bottlenecks.
+      \item Validate training by comparing loss curves and sample generations against the LSTM baseline.
+      \item \textbf{Options.}
+        \begin{itemize}[label=\textbf{--}, leftmargin=*]
+          \item \textbf{Pure one-hot MLP}. Pros: simplest mapping from context to logits; no extra parameters besides linear layers. Cons: input dimensionality is $k \times V$ which is large (memory-heavy, slow on GPU/CPU).
+          \item \textbf{Shared token embedding + MLP}. Pros: reduces dimensionality to $k \times d$; can reuse embedding matrix from other models; better gradient flow. Cons: slightly more complex, introduces embedding lookup to keep in sync with tokenizer.
+          \item \textbf{Convolutional interpretation} (use 1D conv over token embeddings). Pros: leverages PyTorch conv implementations for efficiency; easier to extend to variable $k$. Cons: deviates from straightforward MLP spec; requires reshaping to match expectation of provided forward loop or refactoring it.
+        \end{itemize}
+    \end{itemize}
+  \item \textbf{Implement true nucleus (top-$p$) sampling.}
+    \begin{itemize}
+      \item Convert logits to probabilities via softmax, sort tokens by probability mass, accumulate until the cumulative sum first exceeds the user-specified $p$, then normalize and sample within that subset using \texttt{torch.multinomial}.
+      \item Exercise the sampler with multiple $p$ values (e.g., $0.8$, $0.95$, $1.0$) to ensure qualitative differences show up in generated stories.
+      \item \textbf{Options.}
+        \begin{itemize}[label=\textbf{--}, leftmargin=*]
+          \item \textbf{Full sort with mask} (sort descending, compute cumulative sum, zero out tail). Pros: easy to reason about; deterministic behavior. Cons: $O(V \log V)$ per step; may be slow for large vocab.
+          \item \textbf{Partial sort via \texttt{torch.topk}} (increase $k$ until threshold met). Pros: can reduce sorting cost if $p$ is low; leverages GPU kernels. Cons: requires iterative loop to adjust $k$; more bookkeeping.
+          \item \textbf{CDF threshold on already-softmaxed logits} (use stable cumulative sum after sorting by logits). Pros: avoids repeated softmax calls if logits reused; simple to vectorize. Cons: needs careful numerical stability; sorting logits approximates probability order but still requires softmax to compute final weights.
+        \end{itemize}
+    \end{itemize}
+  \item \textbf{Build the Transformer stack.}
+    \begin{itemize}
+      \item Implement \texttt{RMSNorm} with learnable weight, computing $\mathrm{RMS}(x)$ per token and returning $x / \mathrm{RMS}(x) \times w$.
+      \item Construct \texttt{TransformerModel} with:
+        \begin{enumerate}[label*=\alph*.]
+          \item Token embeddings and a positional encoding scheme (e.g., learned positional embeddings) compatible with the existing \texttt{block\_size}.
+          \item A configurable number of decoder blocks, each containing multi-head causal self-attention with residual connections, followed by an MLP (e.g., two-layer feed-forward with SiLU) and a trailing \texttt{RMSNorm}.
+          \item Rotary or additive causal masking to prevent attention from peeking at future tokens.
+          \item A final projection layer that maps hidden states back to the vocabulary dimension for next-token prediction.
+        \end{enumerate}
+      \item Integrate the Transformer into \texttt{main()} by adding it to the \texttt{models} dictionary (optionally re-enabling the k-gram model once complete).
+      \item \textbf{Options.}
+        \begin{itemize}[label=\textbf{--}, leftmargin=*]
+          \item \textbf{Custom decoder block (minGPT-style)}. Pros: full control over architecture; aligns with assignment intent; easier to instrument for interpretability. Cons: more code to write/debug; must carefully implement masking and weight initializations.
+          \item \textbf{Hybrid PyTorch modules} (use \texttt{nn.MultiheadAttention} + manual RMSNorm + MLP). Pros: reuses optimized attention kernel; less boilerplate. Cons: still need to manage causal masks and KV caching manually; interface quirks (batch-first vs seq-first).
+          \item \textbf{Leverage \texttt{nn.TransformerDecoder}} with custom norms. Pros: quickest path to functional model; built-in masking utilities. Cons: deviates from ``from scratch'' expectation; limited flexibility for RMSNorm without subclassing; harder to match modern architectures (pre-norm, RMSNorm everywhere).
+        \end{itemize}
+    \end{itemize}
+  \item \textbf{Unify training and evaluation across models.}
+    \begin{itemize}
+      \item Confirm that all models train under the same dataloader and loss function without numerical instability, adjusting learning-rate or gradient clipping if needed.
+      \item Capture at least three figures required for the oral presentation (e.g., training loss trajectories per model, qualitative sample comparisons, attention-head visualizations for the Transformer when feasible).
+      \item Log configuration details, encountered issues, and fixes to streamline the final presentation narrative.
+      \item \textbf{Options.}
+        \begin{itemize}[label=\textbf{--}, leftmargin=*]
+          \item \textbf{Shared training loop} (current approach). Pros: minimal code duplication; easy comparison of metrics. Cons: requires model interfaces to align perfectly; less flexibility per-model.
+          \item \textbf{Model-specific runner hooks} (allow overrides for optimizer, scheduler, logging). Pros: tailored hyperparameters per architecture; accommodates differing convergence speeds. Cons: more engineering overhead; increases surface area for bugs.
+          \item \textbf{Lightning-style trainer refactor}. Pros: standardized logging/checkpointing; facilitates figure generation. Cons: high upfront refactor cost; may be overkill given assignment scope.
+        \end{itemize}
+    \end{itemize}
+  \item \textbf{Prepare for the oral evaluation.}
+    \begin{itemize}
+      \item Schedule the presentation slot, list all collaborators, and rehearse a shared walkthrough that covers implementation decisions, debugging stories, and sample outputs.
+      \item Assemble sources consulted (LLMs, forums, papers) to reference during Q\&A, matching the course policy.
+      \item \textbf{Options.}
+        \begin{itemize}[label=\textbf{--}, leftmargin=*]
+          \item \textbf{Slide-first rehearsal} (iterate on deck before live demos). Pros: ensures required figures are polished; easier to time presentation. Cons: live code walkthrough may receive less attention during prep.
+          \item \textbf{Demo-first rehearsal} (start from code + outputs). Pros: builds confidence in explaining implementation details; uncovers demo fragility. Cons: risk of underdeveloped narrative structure if slides are secondary.
+          \item \textbf{Hybrid dry run with two devices}. Pros: aligns with recommended setup (slides + code); balances narrative and technical depth. Cons: requires coordinating hardware and environment ahead of time.
+        \end{itemize}
+    \end{itemize}
+\end{enumerate}
+
+\section*{Risk Mitigation and Tracking}
+\begin{itemize}[leftmargin=*]
+  \item Start with toy datasets and short sequences when bringing new models online to avoid long feedback cycles.
+  \item Check gradients and activations for exploding/vanishing behavior as each component is introduced, especially within the Transformer block.
+  \item Maintain incremental checkpoints (even for small models) so that generated samples and loss curves can be reproduced quickly for figure generation.
+\end{itemize}
+
+\end{document}
+

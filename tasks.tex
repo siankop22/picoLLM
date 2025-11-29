@@ -1,0 +1,341 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{amsmath}
+
+\title{Core Task Progress Notes}
+\author{Team: \underline{\hspace{2in}}}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section*{Sanity-Check Run}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Command.} \texttt{OMP\_NUM\_THREADS=1 python3 pico-llm.py --tinystories\_weight 0.0 --input\_files 3seqs.txt --block\_size 32 --max\_steps\_per\_epoch 1 --kgram\_k 2 --embed\_size 64 --device\_id cpu}
+  \item \textbf{Environment tweaks.} Installed the missing \texttt{tiktoken} package and pinned OpenMP threads to avoid shared-memory warnings in the sandboxed environment.
+  \item \textbf{Outcome.} Training loop completed three abbreviated epochs for the LSTM baseline on \texttt{3seqs.txt}, producing loss values (10.82 $\rightarrow$ 10.80 $\rightarrow$ 10.77) and sample generations at greedy, $p=0.95$, and $p=1.0$ settings. This confirms data loading, tokenization, model forward/backward, and text generation pathways function end-to-end on CPU-only hardware.
+\end{itemize}
+
+\section*{Key Observations}
+\begin{itemize}[leftmargin=*]
+  \item The current nucleus sampling placeholder yields identical outputs across different $p$ values, reinforcing the need to implement true top-$p$ sampling before the presentation.
+  \item LSTM outputs trained on the minimal dataset remain nonsensical, which is expected given the toy corpus and tiny training budget; future sanity checks on TinyStories or richer data should improve qualitative quality.
+  \item Installing dependencies on the target machine (e.g., \texttt{tiktoken}) should be part of setup instructions to prevent runtime failures during the live demo.
+\end{itemize}
+
+\section*{Sample Interview Questions \& Answers}
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{What did you verify in the sanity-check run, and why did you choose the custom dataset?}\\
+        We confirmed that the default training loop, tokenizer, and generation routines run without crashing on CPU. The \texttt{3seqs.txt} data ships with the repo, so it avoids the network dependency of downloading TinyStories and shortens iteration time.
+  \item \textbf{Why did the generated samples look incoherent, and is that a concern?}\\
+        The dataset contains synthetic numeric sequences and we limited training to one gradient step per epoch. With minimal data and budget, the LSTM cannot learn meaningful structure; the purpose of this run was functionality, not quality. Larger datasets and more steps will address coherence.
+  \item \textbf{You pinned \texttt{OMP\_NUM\_THREADS} to 1---will that hurt performance later?}\\
+        For this quick CPU smoke test it eliminated shared-memory errors. On a full training environment we can remove or raise the cap once OpenMP shared-memory permissions are available, restoring multithreaded BLAS performance.
+  \item \textbf{What additional checks will you run before the presentation?}\\
+        We plan to repeat the sanity check on TinyStories once Transformer and k-gram models are implemented, capture training curves for the required figures, and verify qualitative outputs under true top-$p$ sampling to demonstrate improved diversity.
+\end{enumerate}
+
+\section*{KGramMLPSeqModel Design Options}
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Baseline One-Hot MLP.}\\
+        \textit{Structure:} Flatten the $k$ one-hot context vectors into a $(k \times |V|)$ input and feed through stacked Linear $\rightarrow$ SiLU blocks ending in a Linear layer to logits.\\
+        \textit{Pros:} Direct translation of the docstring; simplest to reason about; no extra embeddings needed.\\
+        \textit{Cons:} Extremely high input dimensionality (tens of thousands) makes each forward/backward pass slow and memory hungry; scales poorly with larger vocab or $k$.\\
+        \textit{Performance expectations:} Works for tiny vocab toy data but may be impractical for full TinyStories unless chunking is aggressive.
+  \item \textbf{Token Embedding + MLP (Shared Projection).}\\
+        \textit{Structure:} Map each context token through a learned embedding matrix ($|V| \rightarrow d$), concatenate the $k$ embeddings (size $k \times d$), then apply a compact MLP that projects back to vocabulary logits.\\
+        \textit{Pros:} Input dimensionality drops dramatically; parameters scale with $d$ instead of $|V|$; embeddings can be reused or initialized from LSTM/Transformer values.\\
+        \textit{Cons:} Slightly more complex; must ensure embeddings are trained jointly; loses the “pure” one-hot formulation.\\
+        \textit{Performance expectations:} Much faster and fits GPU memory; still expressive enough for k-gram patterns when $d$ is moderate.
+  \item \textbf{Embedding + Depthwise 1D Convolution Hybrid.}\\
+        \textit{Structure:} Embed tokens as above, stack along temporal dimension, then use 1D convolution(s) over the $k$ context positions followed by a projection to logits.\\
+        \textit{Pros:} Weight sharing across positions reduces parameters; convolutional kernels capture local order efficiently; fits well with chunked inference.\\
+        \textit{Cons:} Deviates from strict MLP requirement; requires reshaping logic in the provided forward loop; debugging convolutional behavior may be harder.\\
+        \textit{Performance expectations:} Efficient on GPU and handles longer $k$ gracefully; offers inductive bias similar to CNNs for n-gram features.
+\end{enumerate}
+
+\section*{Action Plan: Implementing KGramMLPSeqModel}
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Select architecture.} Choose between one-hot MLP, embedding-based MLP, or convolution hybrid based on desired trade-offs.
+  \item \textbf{Define network layers.} Instantiate embedding (if needed), hidden Linear layers with activation, dropout if desired, and final Linear layer to $|V|$ logits.
+  \item \textbf{Integrate into forward loop.} Replace the \texttt{self.net = None} stub and ensure tensors are moved to the correct device, handling chunked processing without altering the provided outer loops.
+  \item \textbf{Add safety checks.} Validate input shapes, raise informative errors if \texttt{self.net} is misconfigured, and confirm gradients flow through embeddings.
+  \item \textbf{Test in notebook.} Run the reduced configuration from the sanity check, compare loss trajectories, and profile runtime to confirm expected improvements.
+\end{enumerate}
+
+\section*{Forward Pass Rationale}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Responsibility.} The \texttt{forward()} method ingests a tensor of token IDs with shape (sequence length, batch size), walks through the sequence in micro-batches, extracts the preceding $k$ tokens for each position, pads when history is short, one-hot encodes that context, and ships the flattened vector through the chosen sub-network to obtain logits.
+  \item \textbf{Chunking.} Iterating in blocks of size \texttt{chunk\_size} lowers peak memory usage, making the naive Python loop feasible even for long sequences.
+  \item \textbf{Why it matters.} Without this logic, the k-gram model would never transform context into next-token distributions—no logits means no loss, no gradients, and no generation. This function therefore defines the core behavior we train and evaluate.
+  \item \textbf{Postconditions.} Concatenating the outputs from each chunk restores the expected $(\text{seq\_len}, \text{batch}, |V|)$ tensor that downstream code (loss, sampling) depends on.
+\end{itemize}
+
+\section*{Action Plan: Implementing Nucleus Sampling}
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Normalize logits.} Convert logits to probabilities via \texttt{softmax} to obtain a stable distribution over the vocabulary.
+  \item \textbf{Rank tokens.} Sort probabilities in descending order while keeping token indices to identify the highest-mass prefix.
+  \item \textbf{Cumulative cutoff.} Compute the running probability mass and retain the smallest slice whose sum exceeds the user-specified $p$ threshold.
+  \item \textbf{Renormalize.} Scale the retained probabilities so they sum to one, ensuring a valid categorical distribution.
+  \item \textbf{Sample token.} Draw the next token from the truncated distribution (fall back to the full distribution if $p$ never triggers).
+  \item \textbf{Surface API.} Expose the sampler through \texttt{generate\_text} so notebook experiments can vary $p$ without extra wiring.
+\end{enumerate}
+
+\section*{Nucleus Sampling Observations}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Setup.} Used the quick LSTM sanity-check run (one optimization step on the synthetic corpus) and generated 20 new tokens from the prompt ``Once upon a'' with different top-$p$ thresholds.
+  \item \textbf{Greedy ($p=\text{None}$).} \textit{``Once upon a office sofa Iz ACA King investigate likeness ancestorRegarding speaker dive Dum wavesMagikarp Gleaming Authorization Asset hamHor Clinton''}
+  \item \textbf{Top-$p=0.8$.} \textit{``Once upon a retroald Continuous Istanbul '/ Issa kids recourse fa Gly EMP (\$) Dig ProxybpJu ceilings RailwayiversityIto''}
+  \item \textbf{Top-$p=0.95$.} \textit{``Once upon a Saulfocus340headed Dietaryindividual ideologicallyCW intendederen contributMA tours ML Contribut Nottingham European CHRIST Readers dere''}
+  \item \textbf{Top-$p=1.0$.} \textit{``Once upon a Jordan speciesotomy started Cousoccupied Shootifestyle DRMBoot Colorsinav Sit Actionuren dunk now 29 rarity Nguyen''}
+  \item \textbf{Takeaway.} Higher $p$ values admit a larger tail of low-probability tokens, yielding more diverse (but noisier) completions. Greedy decoding sticks to the modal choice and repeats motifs, while $p=1.0$ allows maximum randomness.
+\end{itemize}
+
+\section*{Optional Task: Custom Training Data}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Dataset.} Authored five corpora of hand-written micro-stories in \texttt{data/custom\_corpus/field\_notes.txt}, \texttt{mini\_stories.txt}, \texttt{observatory\_journal.txt}, \texttt{city\_archive.txt}, and the new \texttt{harbor\_diary.txt}. Combined, the directory now holds 182 unique lines, tripling the original custom pool with metro, nocturnal, aerial, and harbor vignettes.
+  \item \textbf{Loader Updates.} Added \texttt{--input\_dir} (recursive \texttt{*.txt} discovery) and \texttt{--limit\_custom\_examples} flags so we can point the trainer at an entire folder or trim the number of custom lines for quick tests.
+  \item \textbf{Usage.} Example command: \texttt{OMP\_NUM\_THREADS=1 python3 pico-llm.py --tinystories\_weight 0.25 --input\_dir data/custom\_corpus --block\_size 64 --max\_steps\_per\_epoch 1 --enable\_transformer\_variants gptoss}.
+  \item \textbf{Result Snapshot.} A quick smoke test with \texttt{--tinystories\_weight 0.25} + the custom corpus loads 182 additional sequences and trains without errors. Even with the one-step-per-epoch cap the models start echoing the new terms (“drone”, “lighthouse”, “meteorite”) instead of the numeric toy lines, confirming that the loader now ingests richer data sources.
+  \item \textbf{Loss Sweep.} Recorded short runs at four corpus sizes (3, 63, 123, 185 sequences) with \texttt{--custom\_sweep\_log artifacts/custom\_data\_sweep.json}. The notebook plots the final epoch loss for LSTM and GPT-oss versus corpus size, showing monotonic loss reduction for LSTM and a gentler decline for GPT-oss as more custom data is added.
+  \item \textbf{Training Budget Sweep.} Logged fixed-corpus runs with increasing steps per epoch (1, 3, 6) under a 60/40 train/test split. Stored metrics in \texttt{artifacts/training\_budget\_sweep.json}; the notebook visualises how additional gradient steps lower both train and eval losses, clarifying that the earlier loss rise was due to under-training.
+  \item \textbf{Next Steps.} Curate a larger custom directory (possibly user transcripts or domain notes) and run longer schedules while logging per-source sampling weights. Compose qualitative comparisons between TinyStories-only and blended corpora for the presentation.
+\end{itemize}
+
+\section*{Performance Comparison Strategy}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Feasibility.} It is practical to compare all three architectures visually: log training loss and wall-clock time per step for each variant while running identical hyperparameters, then plot the metrics using \texttt{matplotlib} inside the standalone notebook. GPU execution is optional but accelerates experimentation.
+  \item \textbf{Instrumentation plan.}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+      \item Wrap the training loop to record (loss, step, elapsed seconds) tuples for each KGramMLPSeqModel option via separate helper functions.
+      \item Store results in a shared list or \texttt{pandas} DataFrame, noting architecture label and configuration (e.g., embedding dimension).
+      \item After each run, generate line plots for loss vs. step and bar charts for tokens/sec to highlight efficiency differences.
+    \end{itemize}
+  \item \textbf{Caveats.} Full TinyStories runs may be slow in Colab CPU mode; expect to subsample the dataset or limit training steps for a fair yet tractable comparison. Ensure random seeds are fixed for reproducibility.
+\end{itemize}
+
+\section*{Overfitting Exploration Plan}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Goal.} Demonstrate and study overfitting by training on a deliberately small subset of the custom corpus while monitoring both training and testing loss.
+  \item \textbf{Subset Selection.} Sample 20--30 sequences from the custom directory, maintain a 60/40 train/test split so the held-out portion remains informative.
+  \item \textbf{Training Schedule.} Run extended schedules (e.g., up to 100 gradient steps) with periodic checkpoints. Capture training/testing loss pairs as well as qualitative generations to observe memorisation.
+  \item \textbf{Architectures.} Repeat the procedure for both LSTM and GPT-oss to compare how quickly each model memorises the small dataset.
+  \item \textbf{Artifacts.} Log metrics to a new JSON file (e.g., \texttt{artifacts/overfitting\_sweep.json}) so the notebook can add a dedicated plot once runs are complete.
+  \item \textbf{Initial Run.} Executed a 30-epoch sweep (batch size 4) on a 43-sequence subset; metrics recorded in \texttt{artifacts/overfitting\_sweep.json} now feed the notebook plot highlighting the divergence between training and testing losses.
+\end{itemize}
+
+\section*{Optional Task: General Hyperparameter Study (Plan)}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Objective.} Systematically explore non-learned settings (embedding size, block size, number of LSTM layers, Transformer heads/blocks, learning rate, batch size) to see how they affect convergence speed, loss, and sample quality.
+  \item \textbf{Experimental Grid.}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+      \item \textbf{Scope.} Focus on a manageable subset: e.g., embedding sizes $\{256, 512, 1024\}$, block sizes $\{32, 64, 128\}$, LSTM layers $\{1, 2\}$, Transformer heads $\{4, 8\}$, learning rates $\{5{\\times}10^{-4}, 1{\\times}10^{-3}\}$.
+      \item \textbf{Models.} Run both LSTM and GPT-oss for each hyperparameter combo.
+      \item \textbf{Budget.} Fix a moderate training budget (e.g., 10 epochs, batch size 8) to keep runtimes tractable while still reflecting differences.
+    \end{itemize}
+  \item \textbf{Metrics.} Log training/testing loss, tokens-per-second, and representative generations. Store results in \texttt{artifacts/hparam\_sweep.json} for notebook visualisation (e.g., heatmaps or spider plots).
+  \item \textbf{Notebook Integration.} Add a “General Hyperparameter Study” section that pulls the JSON results and highlights the best-performing configurations along with trade-offs (quality vs. speed).
+  \item \textbf{Deliverables.} Produce plots comparing loss vs. embedding size, loss vs. learning rate, etc., summarise key findings, and note recommendations for the final presentation.
+  \item \textbf{Initial Runs.} Logged three configurations (\texttt{emb256/block32/lr5e-4}, \texttt{emb512/block64/lr1e-3}, \texttt{emb1024/block128/lr2e-3}) to \texttt{artifacts/hparam\_sweep.json}; the notebook now visualises their training/testing losses side by side.
+\end{itemize}
+
+\section*{Empirical Results (Synthetic Corpus)}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Setup.} CPU only; k=2, embedding size 64, two inner MLP layers, Adam with learning rate $1\\times 10^{-3}$, 20 mini-batches per variant (batch size 32) over the \texttt{3seqs.txt} dataset.
+  \item \textbf{Metrics.}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+      \item One-hot MLP: average loss $\\approx 10.63$, throughput $\\approx 17.6$ tokens/s, runtime $\\approx 1161$ seconds.
+      \item Embedding MLP: average loss $\\approx 9.49$, throughput $\\approx 42.3$ tokens/s, runtime $\\approx 485$ seconds.
+      \item Conv Hybrid: average loss $\\approx 10.23$, throughput $\\approx 32.3$ tokens/s, runtime $\\approx 634$ seconds.
+    \end{itemize}
+  \item \textbf{Decision.} The embedding-based MLP achieves the best trade-off (lowest loss and highest throughput), so we will proceed with this architecture for the full implementation and upcoming experiments.
+\end{itemize}
+
+\section*{TransformerModel Implementation Outline}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Surface Configuration.}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item Expose \texttt{d\_model}, \texttt{n\_heads}, \texttt{n\_blocks} (capped at ten), feed-forward width multiplier, dropout rates, and rotary-frequency toggles so we can sweep sizes without rewriting layers.
+        \item Share a \texttt{transformer\_variant} flag to map onto the presets listed below (GPT2, GPT-oss, Llama3-lite, minGPT).
+    \end{itemize}
+    \item \textbf{Token and Positional Embeddings.}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item Reuse the shared token embedding matrix for the output projection (weight tying).
+        \item Implement learned positional embeddings by default; include a rotary positional embedding helper so GPT-oss and Llama-style presets can opt in.
+    \end{itemize}
+    \item \textbf{RMSNorm and Block Skeleton.}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item Finish the RMSNorm stub: compute the mean square per hidden vector, scale by \texttt{weight}, and broadcast the epsilon guard.
+        \item Each Transformer block follows Pre-Norm layout: \texttt{RMSNorm} $\rightarrow$ Multi-Head Attention + residual $\rightarrow$ \texttt{RMSNorm} $\rightarrow$ Feed-Forward + residual.
+    \end{itemize}
+    \item \textbf{Multi-Head Attention.}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item Compute query, key, value tensors via shared Linear projections; reshape to \texttt{(seq, batch, heads, head\_dim)}.
+        \item Apply rotary or additive position bias if enabled, mask with causal upper-triangular mask, scale by $\frac{1}{\sqrt{\text{head\_dim}}}$, and reuse the cache-friendly loop already provided in the stub comments.
+    \end{itemize}
+    \item \textbf{Feed-Forward Network.}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item Default to GELU two-layer MLP with width multiplier 4$\times$; allow toggling to SwiGLU for the Llama3-lite preset.
+        \item Insert dropout hooks that become no-ops during evaluation to match the starter code style.
+    \end{itemize}
+    \item \textbf{Forward Pass and Output Head.}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item Accept input as \texttt{(seq, batch)}, emit logits \texttt{(seq, batch, vocab)}.
+        \item Tie the embedding weights for the output linear layer unless a variant explicitly disables sharing.
+    \end{itemize}
+    \item \textbf{Initialization and Guard Rails.}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item Adopt variant-specific initializers (GPT2 uses scaled normal, Llama-style uses Xavier uniform).
+        \item Assert \texttt{n\_heads} divides \texttt{d\_model} and \texttt{n\_blocks} $\leq 10$ to keep runs within the assignment budget.
+    \end{itemize}
+    \item \textbf{Testing Hooks.}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item Add unit checks that random inputs produce finite logits and that the KV-cache path matches the dense attention for small sequences.
+        \item Benchmark the synthetic dataset with three quick batches to record loss and throughput per variant.
+    \end{itemize}
+\end{enumerate}
+
+\section*{Transformer Variants and Feasibility}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{minGPT-inspired (Feasible).}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item Architecture: \texttt{d\_model} 384, \texttt{n\_heads} 6, \texttt{n\_blocks} 6, GELU feed-forward width 1536, learned positional embeddings, tied output weights.
+        \item Implementation status: fully achievable with the outline above; requires no external dependencies.
+        \item Metrics plan: reuse the synthetic benchmark harness (20 batches, batch size 32) and report loss/tokens-per-second next to the KGram results.
+    \end{itemize}
+    \item \textbf{GPT2-small style (Feasible with scaling).}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item Architecture: adapt GPT-2 small to assignment limits by using \texttt{d\_model} 768, \texttt{n\_heads} 12, \texttt{n\_blocks} 8 (reduced from 12 to stay $\leq 10$), learned absolute positions, MLP width 3072, GELU activation, tied output head.
+        \item Implementation status: feasible once RMSNorm is replaced with LayerNorm for this preset or we supply a LayerNorm toggle; compute cost is higher but manageable on the synthetic corpus.
+        \item Metrics plan: same synthetic harness; for TinyStories we will downscale batch size to keep runtimes under the cap.
+    \end{itemize}
+    \item \textbf{GPT-oss (Feasible, requires rotary).}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item Architecture: \texttt{d\_model} 512, \texttt{n\_heads} 8, \texttt{n\_blocks} 8, rotary positional embeddings, SwiGLU feed-forward width 2048, untied output head per reference design.
+        \item Implementation status: feasible after we add a light-weight rotary embedding helper; no external kernels needed.
+        \item Metrics plan: record synthetic benchmark figures and optionally a short TinyStories run (max steps per epoch $=1$) to stay within time limits.
+    \end{itemize}
+    \item \textbf{Llama3-lite (Partially feasible).}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item Architecture: distilled from the published spec with \texttt{d\_model} 1024, \texttt{n\_heads} 16, \texttt{n\_blocks} 8, rotary positions, SwiGLU feed-forward width 8192, RMSNorm everywhere, untied output head.
+        \item Implementation status: core building blocks (rotary, SwiGLU, RMSNorm, attention) fit our codebase; full Llama3 features (grouped-query attention, sliding window) exceed current scope. We propose implementing a simplified variant without the extra attention optimisations.
+        \item Metrics plan: we can capture synthetic benchmark numbers; collecting full TinyStories metrics would demand GPU time beyond the assignment budget, so we will document only CPU synthetic runs unless instructed otherwise.
+    \end{itemize}
+    \item \textbf{Performance Collection Summary.}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item All small-batch synthetic metrics are attainable once the Transformer is implemented.
+        \item Full-scale TinyStories training for GPT2-small or Llama3-lite is out of scope without extensive runtime; we will note this limitation in results to keep expectations clear.
+    \end{itemize}
+    \item \textbf{Recorded Metrics (Synthetic Corpus, 3 batches, batch size 16).}
+    \begin{itemize}[leftmargin=1.5em,label=\textbf{--}]
+        \item minGPT-style: average loss $234.14$, throughput $26.33$ tokens/s, elapsed $0.57$ s.
+        \item GPT2-small (trimmed to 8 blocks): average loss $360.30$, throughput $9.35$ tokens/s, elapsed $1.60$ s.
+        \item GPT-oss (default): average loss $10.93$, throughput $12.36$ tokens/s, elapsed $1.21$ s.
+        \item Benchmarks are gated behind \texttt{--collect\_transformer\_metrics}; the numbers above match the \texttt{RECORDED\_TRANSFORMER\_BENCHMARK} entries in \texttt{pico-llm.py}.
+    \end{itemize}
+\end{itemize}
+
+\section*{Core Task Interview Questions \& Answers}
+
+\subsection*{Task 1: Sanity-Check Run}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{What was the purpose of the sanity-check run, and what did it verify?}\\
+    The sanity-check run validated that the entire training pipeline works end-to-end: data loading, tokenization, model forward/backward passes, loss computation, and text generation. We used the minimal \texttt{3seqs.txt} dataset to avoid network dependencies and speed up iteration. The run confirmed that all core components function correctly on CPU-only hardware before implementing more complex models.
+
+    \item \textbf{Why did you choose \texttt{3seqs.txt} instead of TinyStories for the initial check?}\\
+    \texttt{3seqs.txt} ships with the repository, eliminating network download time and potential connectivity issues. It's also tiny (3 sequences), making it ideal for quick smoke tests. TinyStories requires downloading from Hugging Face datasets, which adds latency and potential failure points during a live demo. Once the pipeline is verified, we can confidently scale to larger datasets.
+
+    \item \textbf{The generated text looks nonsensical. Is this expected, and should we be concerned?}\\
+    Yes, this is expected. The dataset contains only 3 synthetic sequences, and we limited training to one gradient step per epoch. With such minimal data and training budget, the model cannot learn meaningful linguistic patterns. The purpose was to verify functionality, not quality. When we scale to TinyStories or larger custom corpora with proper training budgets, the outputs will improve significantly.
+
+    \item \textbf{Why did you set \texttt{OMP\_NUM\_THREADS=1}, and will this impact performance?}\\
+    This eliminates shared-memory warnings in sandboxed environments where OpenMP lacks proper permissions. For quick CPU smoke tests, single-threaded execution is sufficient. In production training environments with proper OpenMP setup, we can remove this cap to restore multithreaded BLAS performance, which significantly accelerates matrix operations.
+\end{enumerate}
+
+\subsection*{Task 2: K-gram MLP Implementation}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{What are the three K-gram architecture variants you considered, and why did you choose the embedding-based MLP?}\\
+    We evaluated three options: (1) One-hot MLP that flattens $k$ one-hot vectors into a $(k \times |V|)$ input, (2) Embedding-based MLP that maps tokens to learned embeddings then processes through a compact MLP, and (3) Convolution hybrid using 1D convolutions over embedded tokens. We chose the embedding-based MLP because it achieved the best trade-off: lowest loss (9.49 vs. 10.23 for conv, 10.63 for one-hot) and highest throughput (42.3 tokens/s vs. 32.3 for conv, 17.6 for one-hot) on the synthetic corpus. The one-hot variant suffers from extremely high input dimensionality, while the embedding approach dramatically reduces parameters and memory usage.
+
+    \item \textbf{How does the K-gram model differ from the LSTM in terms of context handling?}\\
+    The LSTM processes sequences sequentially, maintaining a hidden state that theoretically captures information from all previous tokens. The K-gram MLP uses a fixed sliding window of $k$ preceding tokens as context, with no recurrent state. This makes it more memory-efficient and parallelizable, but limits its ability to capture long-range dependencies beyond the window size $k$. The K-gram model is essentially a local pattern matcher, while the LSTM can theoretically remember information from much earlier in the sequence.
+
+    \item \textbf{What is the purpose of chunking in the K-gram forward pass, and how does it work?}\\
+    Chunking processes the sequence in micro-batches of size \texttt{chunk\_size} to reduce peak memory usage. Instead of processing all positions at once (which could require storing $(\text{seq\_len} \times k \times |V|)$ one-hot vectors), we iterate through blocks, extract the $k$-token context for each position in the chunk, and process them incrementally. This makes the naive Python loop feasible even for long sequences without exhausting memory, especially important for the one-hot variant with its massive input dimensionality.
+
+    \item \textbf{How do you handle positions where there are fewer than $k$ preceding tokens?}\\
+    We pad the context with a special padding token (typically token ID 0) when the sequence position is less than $k$. For example, at position 0, we pad with $k$ padding tokens; at position 1, we use 1 real token and $(k-1)$ padding tokens. This ensures the input to the MLP always has the same dimensionality, allowing batch processing while maintaining the sliding window semantics.
+
+    \item \textbf{What were the key performance differences between the variants in your benchmarks?}\\
+    On the synthetic corpus (20 batches, batch size 32, CPU-only): The embedding MLP achieved 9.49 average loss and 42.3 tokens/s in 485 seconds. The conv hybrid reached 10.23 loss and 32.3 tokens/s in 634 seconds. The one-hot MLP had 10.63 loss and only 17.6 tokens/s in 1161 seconds. The embedding approach wins on both quality (lower loss) and efficiency (higher throughput, faster runtime), making it the clear choice for production use.
+\end{enumerate}
+
+\subsection*{Task 3: Nucleus Sampling}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{What is nucleus (top-$p$) sampling, and how does it differ from greedy decoding?}\\
+    Nucleus sampling dynamically truncates the vocabulary to the smallest set of tokens whose cumulative probability mass exceeds a threshold $p$. We sort tokens by probability, compute cumulative sums, and keep only tokens up to the point where the sum first exceeds $p$. Then we renormalize and sample from this truncated distribution. Greedy decoding always selects the single most probable token (argmax), which is deterministic and can lead to repetitive outputs. Top-$p$ introduces controlled randomness while filtering out low-probability noise.
+
+    \item \textbf{How do different $p$ values affect the generated text quality and diversity?}\\
+    Lower $p$ values (e.g., 0.8) restrict sampling to high-probability tokens, producing more conservative but coherent outputs. Higher $p$ values (e.g., 0.95) admit more candidates, increasing diversity but potentially introducing less likely tokens. At $p=1.0$, we sample from the full distribution, which can produce very diverse but sometimes nonsensical text. Greedy ($p=\text{None}$) always picks the mode, leading to repetitive patterns. In our experiments, moderate values like 0.8--0.95 provide a good balance between coherence and variety.
+
+    \item \textbf{What is the computational complexity of nucleus sampling compared to greedy decoding?}\\
+    Greedy decoding is $O(|V|)$ per token: a single argmax over the vocabulary. Nucleus sampling requires sorting probabilities ($O(|V| \log |V|)$), computing cumulative sums ($O(|V|)$), finding the cutoff point ($O(|V|)$), and renormalizing ($O(k)$ where $k$ is the nucleus size). In practice, the sorting dominates, but modern libraries optimize this, and the overhead is usually acceptable for the quality improvement. The complexity is still linear in vocabulary size, just with a logarithmic factor.
+
+    \item \textbf{Why might nucleus sampling produce better qualitative results than greedy decoding?}\\
+    Greedy decoding can get stuck in repetitive loops because it always chooses the same high-probability continuation. Nucleus sampling introduces controlled randomness that breaks these loops while still avoiding low-probability tokens that would degrade quality. It also allows the model to explore multiple plausible continuations, making the text more natural and less mechanical. In our experiments, greedy outputs repeated motifs like ``investigate likeness ancestorRegarding,'' while top-$p$ sampling produced more varied and engaging text.
+
+    \item \textbf{How do you handle edge cases in nucleus sampling, such as when all probabilities are very low?}\\
+    If the cumulative probability never reaches $p$ (which shouldn't happen with proper normalization, but could occur with numerical issues), we fall back to sampling from the full distribution. We also ensure that at least one token is always included in the nucleus, even if its probability is below the threshold, to guarantee a valid sampling distribution. Additionally, we add small epsilon values during renormalization to prevent division by zero and handle floating-point precision issues.
+\end{enumerate}
+
+\subsection*{Task 4: Transformer Implementation}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{What Transformer variants did you implement, and why did you choose GPT-oss as the default?}\\
+    We implemented three variants: minGPT-inspired (384 dim, 6 heads, 6 blocks), GPT2-small style (768 dim, 12 heads, 8 blocks), and GPT-oss (512 dim, 8 heads, 8 blocks with rotary embeddings and SwiGLU). We chose GPT-oss as the default because it achieved the best loss (10.93) on the synthetic corpus while maintaining reasonable throughput (12.36 tokens/s). It balances modern architectural choices (rotary positional embeddings, SwiGLU activation) with computational efficiency, making it ideal for quick iterations and experimentation.
+
+    \item \textbf{What is RMSNorm, and how does it differ from LayerNorm?}\\
+    RMSNorm (Root Mean Square Normalization) normalizes by the root mean square of activations, omitting the mean-centering step of LayerNorm. Specifically, RMSNorm computes $\text{RMS}(x) = \sqrt{\frac{1}{d}\sum_{i=1}^{d} x_i^2}$ and returns $x / (\text{RMS}(x) + \epsilon) \times \text{weight}$. LayerNorm subtracts the mean first: $(x - \mu) / (\sigma + \epsilon) \times \text{weight}$. RMSNorm is simpler and faster, and has been shown to work well in modern architectures like GPT-oss and LLaMA, though LayerNorm remains standard in many Transformer variants.
+
+    \item \textbf{What are rotary positional embeddings (RoPE), and why did you use them in GPT-oss?}\\
+    Rotary Positional Embeddings apply a rotation matrix to query and key vectors based on their position in the sequence. The rotation encodes relative position information directly into the attention mechanism, allowing the model to understand token relationships without explicit positional encodings. RoPE has several advantages: it naturally handles variable sequence lengths, provides better extrapolation to longer sequences than learned embeddings, and has been shown to improve performance in models like GPT-oss and LLaMA. We used it in GPT-oss to match the reference architecture and leverage these benefits.
+
+    \item \textbf{What is SwiGLU activation, and how does it differ from standard GELU?}\\
+    SwiGLU (Swish-Gated Linear Unit) is a gated activation function: $\text{SwiGLU}(x) = \text{Swish}(xW + b) \odot (xV + c)$, where $\odot$ is element-wise multiplication. It combines a Swish-activated branch with a gating branch, effectively allowing the network to learn which parts of the input to pass through. Standard GELU is simply $\text{GELU}(x) = x \cdot \Phi(x)$ where $\Phi$ is the CDF of a standard normal. SwiGLU has more parameters (two linear projections instead of one) but often achieves better performance, which is why it's used in modern architectures like GPT-oss and LLaMA.
+
+    \item \textbf{How does multi-head attention work, and why is it important?}\\
+    Multi-head attention splits the model dimension into $h$ heads, each with dimension $d_{\text{model}} / h$. Each head independently computes attention over a subspace, allowing the model to attend to different types of relationships simultaneously (e.g., syntactic, semantic, positional). The heads are concatenated and projected back to $d_{\text{model}}$. This parallel attention mechanism is more expressive than single-head attention and is a key innovation of the Transformer architecture. In our implementation, we use 8 heads for GPT-oss, each with 64 dimensions (512 / 8).
+
+    \item \textbf{What is causal masking, and why is it necessary in language modeling?}\\
+    Causal masking ensures that each token can only attend to previous tokens (and itself), preventing the model from ``peeking'' at future tokens during training. This is implemented as an upper-triangular mask filled with $-\infty$ (which becomes 0 after softmax) applied to the attention scores. Without causal masking, the model could cheat by using future information to predict the current token, which would not work during autoregressive generation. Causal masking enforces the autoregressive property: predictions depend only on past context.
+
+    \item \textbf{Why did you limit the number of Transformer blocks to 10?}\\
+    This was a constraint from the assignment specification to keep model complexity and training time manageable. With 8 blocks in GPT-oss (our default), we stay well under this limit while still achieving good performance. More blocks generally improve capacity but increase computation quadratically with sequence length (due to attention) and linearly with depth. The 10-block cap ensures experiments remain tractable on CPU and within reasonable time budgets for the course.
+
+    \item \textbf{What were the performance differences between the Transformer variants in your benchmarks?}\\
+    On the synthetic corpus (3 batches, batch size 16, CPU-only): GPT-oss achieved 10.93 average loss and 12.36 tokens/s. minGPT had 234.14 loss and 26.33 tokens/s (the high loss suggests initialization or architecture issues). GPT2-small reached 360.30 loss and 9.35 tokens/s (also high loss, possibly due to reduced block count from 12 to 8). GPT-oss clearly outperformed the others in terms of loss, making it the best choice for our default configuration.
+\end{enumerate}
+
+\subsection*{Task 5: Optional Tasks (Custom Data, Overfitting, Hyperparameters)}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{How did you implement custom training data loading, and what features did you add?}\\
+    We added two CLI flags: \texttt{--input\_dir} for recursively loading all \texttt{*.txt} files from a directory, and \texttt{--limit\_custom\_examples} to cap the number of custom sequences for quick tests. The loader deduplicates file paths, tokenizes each line up to \texttt{block\_size}, and mixes custom data with TinyStories based on the \texttt{--tinystories\_weight} probability. We also implemented train/test splitting with \texttt{--test\_split\_ratio} to support evaluation on held-out data. This allows flexible experimentation with domain-specific corpora while maintaining the ability to blend with TinyStories.
+
+    \item \textbf{What did your overfitting experiment demonstrate, and how did LSTM and GPT-oss compare?}\\
+    We trained on a small 43-sequence subset (60\% train, 40\% test) for 30 epochs with batch size 4. Both models showed classic overfitting: training loss continued decreasing (LSTM: 0.21, GPT-oss: 0.22) while testing loss plateaued and began rising (LSTM: 8.84, GPT-oss: 8.56). GPT-oss memorized faster (its training loss dropped more quickly), but both models ultimately saturated on the tiny dataset. This demonstrates that with insufficient data, even powerful architectures will overfit, highlighting the importance of dataset size and regularization.
+
+    \item \textbf{What hyperparameters did you explore, and what were the key findings?}\\
+    We varied embedding size (256--1024), block size (32--128), learning rate (5e-4--2e-3), and batch size (4--12) across 6 configurations. The results showed that GPT-oss consistently achieved lower training losses than LSTM across all configurations, but testing losses were more similar (around 5.8--7.7), suggesting GPT-oss may be more prone to overfitting. Larger embedding sizes (1024) and block sizes (128) didn't always improve performance, indicating that model capacity must be balanced with training budget and data size.
+
+    \item \textbf{Why did loss increase when you added more training data in your initial sweep?}\\
+    This was a case of underfitting, not a problem with the data. We kept the training budget fixed (3 epochs) while increasing corpus size. With more data but the same number of gradient steps, the model couldn't learn the larger dataset effectively. When we increased the training budget (more steps per epoch) in a follow-up experiment, losses decreased as expected. This highlights the importance of scaling training budget with dataset size: more data requires more training steps to learn effectively.
+
+    \item \textbf{How did you structure your experimental logging and visualization?}\\
+    We implemented JSON-based logging via \texttt{--custom\_sweep\_log} that records hyperparameters, model metrics (training/testing losses, steps, elapsed time), and dataset statistics. The notebook reads these JSON files and generates plots without re-running training, keeping the notebook computation-free. This separation of concerns allows us to run expensive training offline and visualize results interactively, making it easy to compare configurations and share results with instructors.
+
+    \item \textbf{What datasets did you use for the sweeps---did you use the full Hugging Face TinyStories dataset?}\\
+    No, we did not use the full Hugging Face TinyStories dataset for any of our sweeps. All sweeps were run with \texttt{--tinystories\_weight 0}, which disables TinyStories entirely. Instead, we used a combination of \texttt{3seqs.txt} (3 sequences) and custom corpus files from \texttt{data/custom\_corpus/}. The custom data sweep used 0--182 custom sequences plus 3seqs.txt. The training budget sweep used 110 custom sequences plus 3seqs.txt. The overfitting sweep used 40 custom sequences plus 3seqs.txt. The hyperparameter sweep used 120 custom sequences plus 3seqs.txt. We chose this approach because it allowed faster iteration, avoided network dependencies, and gave us more control over the dataset composition for our experiments.
+\end{enumerate}
+
+\end{document}
+

@@ -1,0 +1,500 @@
+[
+  {
+    "timestamp": 1763094092.602465,
+    "tinystories_sequences": 0,
+    "custom_sequences": 120,
+    "base_sequences": 3,
+    "total_sequences": 123,
+    "tinystories_weight": 0.0,
+    "limit_custom_examples": 120,
+    "test_split_ratio": 0.2,
+    "per_path_counts": {
+      "/Users/mengziyue/csga_2565_ml/pico-llm/3seqs.txt": 3,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/city_archive.txt": 49,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/field_notes.txt": 12,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/harbor_diary.txt": 48,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/mini_stories.txt": 5,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/observatory_journal.txt": 6
+    },
+    "custom_eval_count": 30,
+    "hyperparameters": {
+      "embed_size": 512,
+      "block_size": 64,
+      "batch_size": 8,
+      "num_epochs": 8,
+      "learning_rate": 0.001,
+      "kgram_k": 3,
+      "kgram_chunk_size": 1
+    },
+    "model_metrics": {
+      "lstm_seq": {
+        "epoch_losses": [
+          8.535602122545242,
+          5.104405075311661,
+          4.093532785773277,
+          3.482152909040451,
+          3.066211521625519,
+          2.519933894276619,
+          2.2583961337804794,
+          2.0047576278448105
+        ],
+        "final_loss": 2.0047576278448105,
+        "total_steps": 128,
+        "elapsed": 106.72639989852905,
+        "eval_losses": [
+          6.4835509061813354,
+          5.918007731437683,
+          5.886081576347351,
+          6.061097502708435,
+          6.0442304611206055,
+          6.062267541885376,
+          6.056861042976379,
+          6.10624372959137
+        ],
+        "final_eval_loss": 6.10624372959137
+      },
+      "transformer_gptoss": {
+        "epoch_losses": [
+          6.023925572633743,
+          3.408815920352936,
+          2.0500780045986176,
+          1.4693567752838135,
+          1.2675101682543755,
+          0.933585774153471,
+          0.8735236525535583,
+          0.7169257458299398
+        ],
+        "final_loss": 0.7169257458299398,
+        "total_steps": 128,
+        "elapsed": 207.79261422157288,
+        "eval_losses": [
+          5.672203540802002,
+          5.558920383453369,
+          5.624315977096558,
+          5.807636380195618,
+          5.930736064910889,
+          5.9866673946380615,
+          6.016116142272949,
+          6.140085220336914
+        ],
+        "final_eval_loss": 6.140085220336914
+      }
+    },
+    "prompt": "once upon a time"
+  },
+  {
+    "timestamp": 1763094355.450602,
+    "tinystories_sequences": 0,
+    "custom_sequences": 120,
+    "base_sequences": 3,
+    "total_sequences": 123,
+    "tinystories_weight": 0.0,
+    "limit_custom_examples": 120,
+    "test_split_ratio": 0.2,
+    "per_path_counts": {
+      "/Users/mengziyue/csga_2565_ml/pico-llm/3seqs.txt": 3,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/city_archive.txt": 49,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/field_notes.txt": 12,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/harbor_diary.txt": 48,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/mini_stories.txt": 5,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/observatory_journal.txt": 6
+    },
+    "custom_eval_count": 30,
+    "hyperparameters": {
+      "embed_size": 256,
+      "block_size": 32,
+      "batch_size": 8,
+      "num_epochs": 8,
+      "learning_rate": 0.0005,
+      "kgram_k": 3,
+      "kgram_chunk_size": 1
+    },
+    "model_metrics": {
+      "lstm_seq": {
+        "epoch_losses": [
+          10.259047746658325,
+          8.83050361275673,
+          6.5102768540382385,
+          5.166017681360245,
+          4.804405003786087,
+          4.4029393047094345,
+          4.217143341898918,
+          4.020840793848038
+        ],
+        "final_loss": 4.020840793848038,
+        "total_steps": 128,
+        "elapsed": 51.8889799118042,
+        "eval_losses": [
+          9.557336807250977,
+          7.706311821937561,
+          6.731812953948975,
+          6.479879021644592,
+          6.22699773311615,
+          6.160942316055298,
+          6.102094888687134,
+          6.076395392417908
+        ],
+        "final_eval_loss": 6.076395392417908
+      },
+      "transformer_gptoss": {
+        "epoch_losses": [
+          6.950355887413025,
+          3.9829411059617996,
+          2.683403432369232,
+          1.9290136694908142,
+          1.3725355491042137,
+          0.9898571260273457,
+          0.9261521026492119,
+          0.7930999733507633
+        ],
+        "final_loss": 0.7930999733507633,
+        "total_steps": 128,
+        "elapsed": 194.24064993858337,
+        "eval_losses": [
+          5.9078545570373535,
+          5.541871547698975,
+          5.490675449371338,
+          5.538692116737366,
+          5.658703088760376,
+          5.781205654144287,
+          5.88528048992157,
+          5.853402853012085
+        ],
+        "final_eval_loss": 5.853402853012085
+      }
+    },
+    "prompt": "once upon a time"
+  },
+  {
+    "timestamp": 1763095032.854013,
+    "tinystories_sequences": 0,
+    "custom_sequences": 120,
+    "base_sequences": 3,
+    "total_sequences": 123,
+    "tinystories_weight": 0.0,
+    "limit_custom_examples": 120,
+    "test_split_ratio": 0.2,
+    "per_path_counts": {
+      "/Users/mengziyue/csga_2565_ml/pico-llm/3seqs.txt": 3,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/city_archive.txt": 49,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/field_notes.txt": 12,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/harbor_diary.txt": 48,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/mini_stories.txt": 5,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/observatory_journal.txt": 6
+    },
+    "custom_eval_count": 30,
+    "hyperparameters": {
+      "embed_size": 1024,
+      "block_size": 128,
+      "batch_size": 4,
+      "num_epochs": 8,
+      "learning_rate": 0.002,
+      "kgram_k": 3,
+      "kgram_chunk_size": 1
+    },
+    "model_metrics": {
+      "lstm_seq": {
+        "epoch_losses": [
+          5.601665742935673,
+          3.2079171134579565,
+          1.8779582458157693,
+          1.1084249548373684,
+          0.7362492113344131,
+          0.4607972142196471,
+          0.3905993474106635,
+          0.33845289051532745
+        ],
+        "final_loss": 0.33845289051532745,
+        "total_steps": 248,
+        "elapsed": 349.7881090641022,
+        "eval_losses": [
+          6.5222519636154175,
+          6.526406407356262,
+          6.764028549194336,
+          6.908665716648102,
+          6.7578781843185425,
+          7.065445065498352,
+          7.034651935100555,
+          6.953542113304138
+        ],
+        "final_eval_loss": 6.953542113304138
+      },
+      "transformer_gptoss": {
+        "epoch_losses": [
+          6.161932714523807,
+          4.6095116523004345,
+          3.970950080502418,
+          3.6432532802704842,
+          3.5055766720925607,
+          3.318552586340135,
+          2.6765291690826416,
+          2.5531224435375584
+        ],
+        "final_loss": 2.5531224435375584,
+        "total_steps": 248,
+        "elapsed": 305.8000810146332,
+        "eval_losses": [
+          6.760246157646179,
+          6.724297285079956,
+          7.075621068477631,
+          7.152731359004974,
+          7.269691586494446,
+          7.631200969219208,
+          7.653911650180817,
+          7.74625688791275
+        ],
+        "final_eval_loss": 7.74625688791275
+      }
+    },
+    "prompt": "once upon a time"
+  },
+  {
+    "timestamp": 1763096023.720803,
+    "tinystories_sequences": 0,
+    "custom_sequences": 120,
+    "base_sequences": 3,
+    "total_sequences": 123,
+    "tinystories_weight": 0.0,
+    "limit_custom_examples": 120,
+    "test_split_ratio": 0.2,
+    "per_path_counts": {
+      "/Users/mengziyue/csga_2565_ml/pico-llm/3seqs.txt": 3,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/city_archive.txt": 49,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/field_notes.txt": 12,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/harbor_diary.txt": 48,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/mini_stories.txt": 5,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/observatory_journal.txt": 6
+    },
+    "custom_eval_count": 30,
+    "hyperparameters": {
+      "embed_size": 512,
+      "block_size": 64,
+      "batch_size": 8,
+      "num_epochs": 8,
+      "learning_rate": 0.002,
+      "kgram_k": 3,
+      "kgram_chunk_size": 1
+    },
+    "model_metrics": {
+      "lstm_seq": {
+        "epoch_losses": [
+          7.227754592895508,
+          4.299455374479294,
+          3.135971277952194,
+          2.5383779257535934,
+          1.92771415412426,
+          1.1240481212735176,
+          0.88506337441504,
+          0.6765549909323454
+        ],
+        "final_loss": 0.6765549909323454,
+        "total_steps": 128,
+        "elapsed": 105.64845085144043,
+        "eval_losses": [
+          5.94290030002594,
+          5.863227367401123,
+          6.057791709899902,
+          6.107504367828369,
+          6.157777190208435,
+          6.14279317855835,
+          6.249172925949097,
+          6.330283284187317
+        ],
+        "final_eval_loss": 6.330283284187317
+      },
+      "transformer_gptoss": {
+        "epoch_losses": [
+          6.184871703386307,
+          3.8261164724826813,
+          3.187294080853462,
+          2.3914560303092003,
+          1.9812709093093872,
+          1.4547604955732822,
+          1.3194660879671574,
+          1.2315161041915417
+        ],
+        "final_loss": 1.2315161041915417,
+        "total_steps": 128,
+        "elapsed": 199.8930151462555,
+        "eval_losses": [
+          5.614495277404785,
+          5.9883739948272705,
+          5.944475889205933,
+          6.3099061250686646,
+          6.187916278839111,
+          6.245305776596069,
+          6.647174715995789,
+          6.731629252433777
+        ],
+        "final_eval_loss": 6.731629252433777
+      }
+    },
+    "prompt": "once upon a time"
+  },
+  {
+    "timestamp": 1763097013.252804,
+    "tinystories_sequences": 0,
+    "custom_sequences": 120,
+    "base_sequences": 3,
+    "total_sequences": 123,
+    "tinystories_weight": 0.0,
+    "limit_custom_examples": 120,
+    "test_split_ratio": 0.2,
+    "per_path_counts": {
+      "/Users/mengziyue/csga_2565_ml/pico-llm/3seqs.txt": 3,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/city_archive.txt": 49,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/field_notes.txt": 12,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/harbor_diary.txt": 48,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/mini_stories.txt": 5,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/observatory_journal.txt": 6
+    },
+    "custom_eval_count": 30,
+    "hyperparameters": {
+      "embed_size": 768,
+      "block_size": 96,
+      "batch_size": 8,
+      "num_epochs": 8,
+      "learning_rate": 0.001,
+      "kgram_k": 3,
+      "kgram_chunk_size": 1
+    },
+    "model_metrics": {
+      "lstm_seq": {
+        "epoch_losses": [
+          7.545434832572937,
+          4.659209236502647,
+          3.5847128033638,
+          2.6983507871627808,
+          1.8523170128464699,
+          1.4634597823023796,
+          1.0022022984921932,
+          0.7753232922405005
+        ],
+        "final_loss": 0.7753232922405005,
+        "total_steps": 128,
+        "elapsed": 159.99377703666687,
+        "eval_losses": [
+          6.114455580711365,
+          5.700381517410278,
+          5.781261920928955,
+          5.92367148399353,
+          5.894156336784363,
+          6.032876968383789,
+          6.084183931350708,
+          6.3057756423950195
+        ],
+        "final_eval_loss": 6.3057756423950195
+      },
+      "transformer_gptoss": {
+        "epoch_losses": [
+          6.076994881033897,
+          3.495739594101906,
+          2.0836205556988716,
+          1.4793000891804695,
+          1.1852907501161098,
+          0.9673635922372341,
+          0.749965762719512,
+          0.6906235590577126
+        ],
+        "final_loss": 0.6906235590577126,
+        "total_steps": 128,
+        "elapsed": 200.72144508361816,
+        "eval_losses": [
+          5.98620331287384,
+          5.589947700500488,
+          5.690975546836853,
+          5.819424748420715,
+          5.890666246414185,
+          6.001585602760315,
+          6.091111421585083,
+          6.062643527984619
+        ],
+        "final_eval_loss": 6.062643527984619
+      }
+    },
+    "prompt": "once upon a time"
+  },
+  {
+    "timestamp": 1763097278.1192079,
+    "tinystories_sequences": 0,
+    "custom_sequences": 120,
+    "base_sequences": 3,
+    "total_sequences": 123,
+    "tinystories_weight": 0.0,
+    "limit_custom_examples": 120,
+    "test_split_ratio": 0.2,
+    "per_path_counts": {
+      "/Users/mengziyue/csga_2565_ml/pico-llm/3seqs.txt": 3,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/city_archive.txt": 49,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/field_notes.txt": 12,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/harbor_diary.txt": 48,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/mini_stories.txt": 5,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/observatory_journal.txt": 6
+    },
+    "custom_eval_count": 30,
+    "hyperparameters": {
+      "embed_size": 384,
+      "block_size": 48,
+      "batch_size": 12,
+      "num_epochs": 8,
+      "learning_rate": 0.0007,
+      "kgram_k": 3,
+      "kgram_chunk_size": 1
+    },
+    "model_metrics": {
+      "lstm_seq": {
+        "epoch_losses": [
+          9.82587788321755,
+          7.601482738148082,
+          5.6687493757768115,
+          4.564782576127485,
+          4.177400350570679,
+          3.8410462032664907,
+          3.7269919135353784,
+          3.378307580947876
+        ],
+        "final_loss": 3.378307580947876,
+        "total_steps": 88,
+        "elapsed": 68.85517382621765,
+        "eval_losses": [
+          8.794082641601562,
+          7.187714258829753,
+          6.484209696451823,
+          6.254644870758057,
+          6.057809034983317,
+          6.0575408935546875,
+          6.0159759521484375,
+          5.985498746236165
+        ],
+        "final_eval_loss": 5.985498746236165
+      },
+      "transformer_gptoss": {
+        "epoch_losses": [
+          6.828463684428822,
+          4.102716771039096,
+          2.5523111061616377,
+          1.9427789666435935,
+          1.4954342408613726,
+          1.214614136652513,
+          0.9533176584677263,
+          0.8960597677664324
+        ],
+        "final_loss": 0.8960597677664324,
+        "total_steps": 88,
+        "elapsed": 176.91791820526123,
+        "eval_losses": [
+          5.856019973754883,
+          5.637794017791748,
+          5.493128299713135,
+          5.492520968119304,
+          5.598403771718343,
+          5.685617923736572,
+          5.761200904846191,
+          5.826248009999593
+        ],
+        "final_eval_loss": 5.826248009999593
+      }
+    },
+    "prompt": "once upon a time"
+  }
+]

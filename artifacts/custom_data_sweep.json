@@ -1,0 +1,151 @@
+[
+  {
+    "timestamp": 1763081245.571386,
+    "tinystories_sequences": 0,
+    "custom_sequences": 0,
+    "base_sequences": 3,
+    "total_sequences": 3,
+    "tinystories_weight": 0.0,
+    "limit_custom_examples": 0,
+    "per_path_counts": {
+      "/Users/mengziyue/csga_2565_ml/pico-llm/3seqs.txt": 3
+    },
+    "model_metrics": {
+      "lstm_seq": {
+        "epoch_losses": [
+          10.792304992675781,
+          9.094091415405273,
+          7.3054022789001465
+        ],
+        "final_loss": 7.3054022789001465,
+        "total_steps": 3,
+        "elapsed": 8.065896272659302
+      },
+      "transformer_gptoss": {
+        "epoch_losses": [
+          11.148228645324707,
+          6.994354248046875,
+          3.881027936935425
+        ],
+        "final_loss": 3.881027936935425,
+        "total_steps": 3,
+        "elapsed": 5.898058891296387
+      }
+    },
+    "prompt": "once upon a time"
+  },
+  {
+    "timestamp": 1763081289.7728488,
+    "tinystories_sequences": 0,
+    "custom_sequences": 60,
+    "base_sequences": 3,
+    "total_sequences": 63,
+    "tinystories_weight": 0.0,
+    "limit_custom_examples": 60,
+    "per_path_counts": {
+      "/Users/mengziyue/csga_2565_ml/pico-llm/3seqs.txt": 3,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/city_archive.txt": 60
+    },
+    "model_metrics": {
+      "lstm_seq": {
+        "epoch_losses": [
+          10.82214069366455,
+          9.872936248779297,
+          8.553951263427734
+        ],
+        "final_loss": 8.553951263427734,
+        "total_steps": 3,
+        "elapsed": 12.21258807182312
+      },
+      "transformer_gptoss": {
+        "epoch_losses": [
+          10.853684425354004,
+          7.771287441253662,
+          6.501484394073486
+        ],
+        "final_loss": 6.501484394073486,
+        "total_steps": 3,
+        "elapsed": 10.69144868850708
+      }
+    },
+    "prompt": "once upon a time"
+  },
+  {
+    "timestamp": 1763081334.6072042,
+    "tinystories_sequences": 0,
+    "custom_sequences": 120,
+    "base_sequences": 3,
+    "total_sequences": 123,
+    "tinystories_weight": 0.0,
+    "limit_custom_examples": 120,
+    "per_path_counts": {
+      "/Users/mengziyue/csga_2565_ml/pico-llm/3seqs.txt": 3,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/city_archive.txt": 61,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/field_notes.txt": 15,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/harbor_diary.txt": 44
+    },
+    "model_metrics": {
+      "lstm_seq": {
+        "epoch_losses": [
+          10.815945625305176,
+          10.069723129272461,
+          8.450501441955566
+        ],
+        "final_loss": 8.450501441955566,
+        "total_steps": 3,
+        "elapsed": 12.858329057693481
+      },
+      "transformer_gptoss": {
+        "epoch_losses": [
+          11.052804946899414,
+          7.575906276702881,
+          6.852803707122803
+        ],
+        "final_loss": 6.852803707122803,
+        "total_steps": 3,
+        "elapsed": 11.050143957138062
+      }
+    },
+    "prompt": "once upon a time"
+  },
+  {
+    "timestamp": 1763081380.874269,
+    "tinystories_sequences": 0,
+    "custom_sequences": 182,
+    "base_sequences": 3,
+    "total_sequences": 185,
+    "tinystories_weight": 0.0,
+    "limit_custom_examples": 400,
+    "per_path_counts": {
+      "/Users/mengziyue/csga_2565_ml/pico-llm/3seqs.txt": 3,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/city_archive.txt": 61,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/field_notes.txt": 15,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/harbor_diary.txt": 60,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/mini_stories.txt": 6,
+      "/Users/mengziyue/csga_2565_ml/pico-llm/data/custom_corpus/observatory_journal.txt": 40
+    },
+    "model_metrics": {
+      "lstm_seq": {
+        "epoch_losses": [
+          10.842723846435547,
+          9.997490882873535,
+          9.222258567810059
+        ],
+        "final_loss": 9.222258567810059,
+        "total_steps": 3,
+        "elapsed": 12.173048973083496
+      },
+      "transformer_gptoss": {
+        "epoch_losses": [
+          10.941551208496094,
+          8.400307655334473,
+          7.746376037597656
+        ],
+        "final_loss": 7.746376037597656,
+        "total_steps": 3,
+        "elapsed": 10.61348581314087
+      }
+    },
+    "prompt": "once upon a time"
+  }
+]

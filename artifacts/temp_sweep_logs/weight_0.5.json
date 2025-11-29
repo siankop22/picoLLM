@@ -1,0 +1,58 @@
+[
+  {
+    "timestamp": 1763310425.154762,
+    "tinystories_sequences": 16000,
+    "custom_sequences": 0,
+    "base_sequences": 0,
+    "total_sequences": 0,
+    "tinystories_weight": 0.5,
+    "limit_custom_examples": null,
+    "test_split_ratio": 0.4,
+    "per_path_counts": {},
+    "custom_eval_count": 0,
+    "hyperparameters": {
+      "embed_size": 1024,
+      "block_size": 1024,
+      "batch_size": 16,
+      "num_epochs": 3,
+      "learning_rate": 0.001,
+      "kgram_k": 3,
+      "kgram_chunk_size": 1
+    },
+    "model_metrics": {
+      "lstm_seq": {
+        "epoch_losses": [
+          3.2147477531433104,
+          2.2739643979072572,
+          1.904613004922867
+        ],
+        "final_loss": 1.904613004922867,
+        "total_steps": 150,
+        "elapsed": 18123.990045309067,
+        "eval_losses": [
+          3.228124338150024,
+          2.7554773516654967,
+          2.548117672920227
+        ],
+        "final_eval_loss": 2.548117672920227
+      },
+      "transformer_gptoss": {
+        "epoch_losses": [
+          2.886679210662842,
+          1.9112037134170532,
+          1.9151509022712707
+        ],
+        "final_loss": 1.9151509022712707,
+        "total_steps": 150,
+        "elapsed": 38666.73880124092,
+        "eval_losses": [
+          2.916342357635498,
+          2.6007868213653564,
+          2.443449124336243
+        ],
+        "final_eval_loss": 2.443449124336243
+      }
+    },
+    "prompt": "Once upon a"
+  }
+]

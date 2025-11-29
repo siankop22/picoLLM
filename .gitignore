@@ -1,0 +1,6 @@
+.DS_Store
+
+# Model checkpoints (too large for git)
+artifacts/checkpoints/*.pt
+*.pt
+
